@@ -8,7 +8,7 @@
 </head>
 <body class="bg-light d-flex justify-content-center align-items-center vh-100">
     <div class="card shadow p-4" style="width: 100%; max-width: 400px;">
-        <h3 class="text-center mb-3">Login SI Akademik</h3>
+        <h3 class="text-center mb-3">Login Sistem  Akademik</h3>
         
         <?php if (!empty($flash)): ?>
             <div class="alert alert-info py-2"><?= htmlspecialchars($flash); ?></div>
