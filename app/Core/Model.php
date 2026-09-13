@@ -1,0 +1,26 @@
+<?php
+namespace App\Core;
+
+use PDO;
+use PDOException;
+
+class Model {
+    protected static ?PDO $db = null;
+
+    protected static function getDb(): PDO {
+        if (self::$db === null) {
+            $config = require __DIR__ . '/../../config/database.php';
+            $dsn = "mysql:host={$config['host']};dbname={$config['dbname']};charset={$config['charset']}";
+            
+            try {
+                self::$db = new PDO($dsn, $config['username'], $config['password'], [
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                ]);
+            } catch (PDOException $e) {
+                die("Koneksi database gagal: " . $e->getMessage());
+            }
+        }
+        return self::$db;
+    }
+}
