@@ -2,23 +2,52 @@
 namespace App\Controllers;
 
 use App\Core\Controller;
-use App\Models\Mahasiswa;
 use App\Models\MahasiswaRepository;
+use App\Services\MahasiswaService;
 use App\Config\Database;
+use PDOException;
 
 class MahasiswaController extends Controller {
     private MahasiswaRepository $repo;
+    private MahasiswaService $service;
 
     public function __construct() {
-        $db = Database::getInstance();
-        $this->repo = new MahasiswaRepository($db);
+        try {
+            $db = Database::getInstance();
+            $this->repo = new MahasiswaRepository($db);
+            $this->service = new MahasiswaService($this->repo);
+        } catch (PDOException $e) {
+            // Pencatatan log error ke file app.log
+            error_log(
+                date('Y-m-d H:i:s') . ' - ' . $e->getMessage() . PHP_EOL,
+                3,
+                __DIR__ . '/../../storage/logs/app.log'
+            );
+
+            http_response_code(500);
+            echo "Terjadi gangguan pada sistem. Silahkan coba beberapa saat lagi.";
+            exit;
+        }
     }
 
     public function index() {
         $keyword = $_GET['keyword'] ?? null;
         $dataMahasiswa = $this->repo->all($keyword);
-        
+
         $this->view('mahasiswa/index', ['dataMahasiswa' => $dataMahasiswa]);
+    }
+
+    public function show($id): void {
+        $mhs = $this->repo->find($id);
+        if ($mhs) {
+            echo "<h1>Detail Mahasiswa</h1>";
+            echo "<p>NIM: " . htmlspecialchars($mhs['nim']) . "</p>";
+            echo "<p>Nama: " . htmlspecialchars($mhs['nama']) . "</p>";
+            echo '<p><a href="/si-akademik/public/mahasiswa">Kembali</a></p>';
+        } else {
+            http_response_code(404);
+            echo "Data mahasiswa tidak ditemukan";
+        }
     }
 
     public function create() {
@@ -26,19 +55,22 @@ class MahasiswaController extends Controller {
     }
 
     public function store(): void {
-        $nim = trim($_POST['nim'] ?? '');
-        $nama = trim($_POST['nama'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $prodi_id = (int)($_POST['prodi_id'] ?? 0);
-        $angkatan = (int)($_POST['angkatan'] ?? date('Y'));
-        $status = $_POST['status'] ?? 'aktif';
-
-        try {
-            $mhs = new Mahasiswa(null, $nim, $nama, $email, $prodi_id, $angkatan, $status);
-            $this->repo->create($mhs);                          
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        $result = $this->service->create($_POST);
+        if ($result['success']) {
+            $_SESSION['flash'] = [
+                'type' => 'success',
+                'message' => $result['message']
+            ];
             $this->redirect('/si-akademik/public/mahasiswa');
-        } catch (\Exception $e) {
-            die("<script>alert('" . $e->getMessage() . "'); window.history.back();</script>");
+        } else {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => implode(", ", $result['errors'])
+            ];
+            $this->redirect('/si-akademik/public/mahasiswa/create');
         }
     }
 
@@ -56,27 +88,36 @@ class MahasiswaController extends Controller {
         if (!$id) {
             $this->redirect('/si-akademik/public/mahasiswa');
         }
-        
-        $nim = trim($_POST['nim'] ?? '');
-        $nama = trim($_POST['nama'] ?? '');
-        $email = trim($_POST['email'] ?? '');
-        $prodi_id = (int)($_POST['prodi_id'] ?? 0);
-        $angkatan = (int)($_POST['angkatan'] ?? date('Y'));
-        $status = $_POST['status'] ?? 'aktif';
-
-        try {
-            $mhs = new Mahasiswa($id, $nim, $nama, $email, $prodi_id, $angkatan, $status);
-            $this->repo->update($id, $mhs);
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+        $result = $this->service->update($id, $_POST);
+        if ($result['success']) {
+            $_SESSION['flash'] = [
+                'type' => 'success',
+                'message' => $result['message']
+            ];
             $this->redirect('/si-akademik/public/mahasiswa');
-        } catch (\Exception $e) {
-            die("<script>alert('" . $e->getMessage() . "'); window.history.back();</script>");
+        } else {
+            $_SESSION['flash'] = [
+                'type' => 'danger',
+                'message' => implode(", ", $result['errors'])
+            ];
+            $this->redirect('/si-akademik/public/mahasiswa/edit?id=' . $id);
         }
     }
 
     public function delete(): void {
         $id = $_GET['id'] ?? null;
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
         if ($id) {
             $this->repo->delete($id);
+            $_SESSION['flash'] = [
+                'type' => 'success',
+                'message' => 'Data mahasiswa berhasil dihapus'
+            ];
         }
         $this->redirect('/si-akademik/public/mahasiswa');
     }
